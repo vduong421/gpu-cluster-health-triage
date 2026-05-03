@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GPU Cluster Health Dashboard</title>
+<style>
+body {
+  font-family: Inter, system-ui, sans-serif;
+  margin:0;
+  background:#0f172a;
+  color:#e2e8f0;
+}
+header {
+  background:#111827;
+  color:white;
+  padding:20px 30px;
+}
+.container {
+  max-width:1200px;
+  margin:auto;
+  padding:20px;
+}
+.card {
+  background:#111827;
+  padding:20px;
+  border-radius:14px;
+  border:1px solid #1f2937;
+  box-shadow:0 6px 18px rgba(0,0,0,0.4);
+  margin-bottom:20px;
+}
+.grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+}
+.kpi {
+  padding:14px;
+  border:1px solid #1f2937;
+  border-radius:12px;
+  background:#020617;
+  text-align:center;
+}
+.bar {
+  height:14px;
+  background:#e5e7eb;
+  border-radius:8px;
+  overflow:hidden;
+}
+.fill {
+  height:100%;
+  background:#2563eb;
+}
+.fill.red { background:#dc2626; }
+.fill.blue { background:#2563eb; }
+button {
+  padding:10px 14px;
+  border:none;
+  border-radius:10px;
+  background:linear-gradient(135deg,#3b82f6,#6366f1);
+  color:white;
+  font-weight:600;
+  cursor:pointer;
+}
+.quick button {
+  background:#1e293b;
+  color:#93c5fd;
+  margin-right:8px;
+}
+input {
+  padding:10px;
+  width:70%;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+</style>
+</head>
+<body>
+
+<header>
+<h1>GPU Cluster Health Dashboard</h1>
+</header>
+
+<div class="container">
+
+<!-- AI FIRST (MANDATORY per build direction) -->
+<div class="card">
+<h2>AI Analyst</h2>
+<div id="analyst"></div>
+</div>
+
+<div class="card">
+<h2>Ask AI</h2>
+<input id="q">
+<button onclick="ask()">Ask</button>
+<p id="status"></p>
+
+<div class="quick">
+<button onclick="preset('Top risks')">Top Risks</button>
+<button onclick="preset('Root cause analysis')">Root Cause</button>
+<button onclick="preset('What should I fix first')">Fix</button>
+<button onclick="preset('What is system behavior')">System Behavior</button>
+</div>
+
+<div id="aiResult"></div>
+</div>
+
+<!-- KPI SUMMARY -->
+<div class="grid" id="kpis"></div>
+
+<!-- ABOVE-THE-FOLD CHART -->
+<div class="card">
+<h2>Top Risk Nodes</h2>
+<div id="chart"></div>
+</div>
+
+<div class="card">
+<h2>Priority Breakdown</h2>
+<div id="priorityChart"></div>
+</div>
+
+<div class="card">
+<h2>Failure Reason Distribution</h2>
+<div id="reasonChart"></div>
+</div>
+
+<!-- DATA TABLE -->
+<div class="card">
+<h2>Node Table</h2>
+<table style="width:100%;border-collapse:collapse;font-size:14px" id="table">
+<thead>
+<tr>
+<th style="text-align:left;padding:8px">Node</th>
+<th style="text-align:left;padding:8px">Model</th>
+<th style="text-align:left;padding:8px">Score</th>
+<th style="text-align:left;padding:8px">Priority</th>
+<th style="text-align:left;padding:8px">Reasons</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+
+</div>
+
+<script>
+
+function chart(data){
+  let max = Math.max(...data.map(x=>x.risk_score))
+  document.getElementById("chart").innerHTML =
+    data.map(x=>{
+      let w = x.risk_score/max*100
+      return `<div>${x.node}
+      <div class="bar">
+      <div class="fill red" style="width:${w}%"></div>
+      </div></div>`
+    }).join("")
+}
+
+function priorityChart(counts){
+  let max = Math.max(...Object.values(counts))
+  document.getElementById("priorityChart").innerHTML =
+    Object.entries(counts).map(([k,v])=>{
+      let w = v/max*100
+      return `<div>${k}
+        <div class="bar">
+        <div class="fill blue" style="width:${w}%"></div>
+        </div>
+      </div>`
+    }).join("")
+}
+
+function renderKPI(s){
+  document.getElementById("kpis").innerHTML =
+    `<div class="kpi">Nodes<br><b>${s.nodes}</b></div>
+     <div class="kpi">P1<br><b>${s.p1}</b></div>
+     <div class="kpi">P2<br><b>${s.p2}</b></div>
+     <div class="kpi">OK<br><b>${s.ok}</b></div>`
+}
+
+function renderTable(nodes){
+  document.querySelector("#table tbody").innerHTML =
+    nodes.map(n=>`
+      <tr>
+        <td>${n.node}</td>
+        <td>${n.model}</td>
+        <td>${n.risk_score}</td>
+        <td>${n.priority}</td>
+        <td>${n.reasons.join(", ")}</td>
+      </tr>
+    `).join("")
+}
+
+function reasonChart(nodes){
+  let map = {}
+  nodes.forEach(n=>{
+    n.reasons.forEach(r=>{
+      map[r] = (map[r]||0)+1
+    })
+  })
+
+  let max = Math.max(...Object.values(map),1)
+
+  document.getElementById("reasonChart").innerHTML =
+    Object.entries(map).map(([k,v])=>{
+      let w = v/max*100
+      return `<div>${k}
+        <div class="bar">
+        <div class="fill" style="width:${w}%"></div>
+        </div>
+      </div>`
+    }).join("")
+}
+
+async function load(){
+  let r = await fetch('/api')
+  let d = await r.json()
+
+  chart(d.nodes)
+  priorityChart(d.priority_counts)
+  reasonChart(d.nodes)
+  renderKPI(d.summary)
+  renderTable(d.nodes)
+
+  let a = d.ai_analyst
+document.getElementById("analyst").innerHTML =
+  `<b>${a.result}</b><br>
+   Recommendation: ${a.recommendation}<br>
+   Decision: ${a.decision}<br>
+   Risks: ${a.risks.join(", ")}<br>
+   Actions: ${a.operator_actions.join(", ")}`
+}
+
+function preset(q){
+  document.getElementById("q").value=q
+}
+
+async function ask(){
+  let q = document.getElementById("q").value
+  document.getElementById("status").innerText = "Running Local AI..."
+  let r = await fetch('/ask',{method:'POST',body:q})
+  let d = await r.json()
+  document.getElementById("status").innerText = "Local AI Finished"
+document.getElementById("aiResult").innerHTML =
+  `<div class="card">
+    <b>Answer:</b> ${d.answer}<br>
+    <b>Evidence:</b> ${d.evidence}<br>
+    <b>Next Action:</b> ${d.next_action}<br>
+    <b>Recommendation:</b> ${d.recommendation}<br>
+    <b>Decision:</b> ${d.decision}<br>
+    <b>Risks:</b> ${(d.risks||[]).join(", ")}<br>
+    <b>Operator Actions:</b> ${(d.operator_actions||[]).join(", ")}
+  </div>`
+}
+
+load()
+
+</script>
+
+</body>
+</html>
