@@ -1,39 +1,58 @@
-﻿# GPU Cluster Health Triage
+# GPU Cluster Health Triage
 
-Role fit: AI infrastructure, GPU systems, performance engineering, SRE-adjacent backend, ML infrastructure, and NVIDIA/Cohere-style systems roles.
+GPU Cluster Health Triage is a local operations tool for ranking GPU cluster nodes by health risk using utilization, memory pressure, ECC errors, thermal signals, and job-impact indicators.
 
-This project analyzes synthetic GPU cluster telemetry and turns noisy node metrics into triage priorities. It is not CUDA development, but it demonstrates practical systems thinking around utilization, memory pressure, error counts, temperature, job failures, and reliability signals.
+It pairs deterministic triage scoring with a local AI analyst so operators can quickly understand which nodes need attention and why.
 
-## Features
+## What It Does
 
-- Reads GPU node telemetry from CSV.
-- Scores health risk from temperature, ECC errors, memory pressure, utilization, and job failures.
-- Produces ranked triage recommendations.
-- Writes JSON and Markdown reports.
+- Loads GPU node telemetry from local sample data.
+- Computes node health scores and risk categories.
+- Highlights memory pressure, utilization imbalance, ECC issues, and likely service impact.
+- Ranks nodes by triage priority.
+- Displays results and AI guidance in a browser UI.
+
+## AI Features
+
+- Local AI analyst explains cluster health and likely impact.
+- AI chat supports questions about node risk and recommended action.
+- Recommendations are grounded in deterministic telemetry scores.
+- The UI shows operational results and AI insight together.
+
+## Architecture
+
+```text
+GPU telemetry
+    |
+    v
+Health scoring + risk ranking + blocker detection
+    |
+    v
+Local AI analyst / chat -> operator explanation + next actions
+    |
+    v
+Browser dashboard
+```
 
 ## Run
 
-```bash
-python app.py --input samples/gpu_nodes.csv --out report
-```
-
-## Engineering Impact
-- Built a Python GPU cluster triage tool that ranks nodes by health risk using utilization, memory pressure, temperature, ECC errors, and job-failure signals.
-- Implemented scoring and recommendation logic to convert noisy infrastructure telemetry into prioritized debugging actions.
-- Generated JSON and Markdown reports for AI infrastructure review workflows.
-
-## Project Workbench
-
-Launch the production-style desktop workbench with:
-
 ```powershell
-launch-workbench.bat
+run.bat
 ```
 
-What it adds:
+## Local AI Setup
 
-- Local-first AI copilot using `google/gemma-4-e4b` by default
-- Operator-focused workbench for reviewing real project inputs and outputs
-- System design, production-impact, and operational brief generation on demand
-- Grounded responses based on this project's README, sample files, and deterministic outputs
+The app supports a local OpenAI-compatible model server. Use `google/gemma-4-e4b` or another small local model.
 
+The deterministic triage engine works without the model.
+
+## Main Files
+
+- `server.py` - local API and AI analyst output.
+- `web/index.html` - dashboard UI.
+- `agents/Agent.md` - cluster triage AI instructions.
+- `samples/` - GPU telemetry data.
+
+## Output
+
+The output includes node health rankings, risk reason codes, recommended operator actions, and AI-generated triage summaries.
