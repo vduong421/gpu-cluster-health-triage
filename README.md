@@ -2,6 +2,10 @@
 
 GPU Cluster Health Triage is a local operations tool for ranking GPU cluster nodes by health risk using utilization, memory pressure, ECC errors, thermal signals, and job-impact indicators.
 
+## Product Screenshot
+
+![Product screenshot](assets/product-screenshot.png)
+
 It pairs deterministic triage scoring with a local AI analyst so operators can quickly understand which nodes need attention and why.
 
 ## What It Does
